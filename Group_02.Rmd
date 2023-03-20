@@ -1,16 +1,153 @@
 ---
-title: " Group_02_Analysis.Rmd"
-output: html_document
-date: '2023-03-09'
+title: " Project 2"
 author: "Group 2"
+date: "2023-03-14"
+output: pdf_document
 ---
 
-```{r}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#loading packages
 library(tidyverse)
 library(moderndive)
 library(gapminder)
 library(sjPlot)
 library(stats)
 library(jtools)
+library(janitor)
+library(knitr)
+
 ```
 
+## Dataset
+
+The dataset comes from the FIES (Family Income and Expenditure Survey) recorded in the Philippines. The survey, which is undertaken every three years, is aimed at providing data on family income and expenditure. The datasets obtained from this survey is from the region, IVB - MIMAROPA, across the Philippines and the following variables, recorded by household.
+
+```{r reading dataset, include=FALSE}
+data<- read_csv("dataset2.csv")
+```
+
+## Variable analysis
+
+```{r variables, include=FALSE}
+head(data)
+glimpse(data)
+data$Household.Head.Sex<-as.factor(data$Household.Head.Sex)
+data$Type.of.Household<-as.factor(data$Type.of.Household)
+levels(data$Type.of.Household)<-c("Single","Extended","Nonrelated")
+data$Electricity<-as.factor(data$Electricity)
+ggplot(data, aes(x = Total.Number.of.Family.members)) + 
+  geom_density(color = "blue")
+```
+
+Because the response variable, \textit{number of people living in the house}, is integer data we chose the Poisson GLM to fit the data. This modelled the count (number of people in a house) as the response variable, \textit{y}.
+
+## Relationship between variables
+
+```{r Plot2, echo=FALSE}
+ggplot(data, aes(x = Household.Head.Sex, y = Total.Number.of.Family.members, fill = Household.Head.Sex)) +
+  geom_boxplot() +
+  labs( y = "Number") +
+  theme(legend.position = "none")
+```
+
+As can be seen from the figure above, there are more people living in the house when the owner (head of the household) is a man.
+
+```{r Plot3, echo=FALSE}
+ggplot(data, aes(x = Type.of.Household, y = Total.Number.of.Family.members, fill = Type.of.Household)) +
+  geom_boxplot() +
+  labs( y = "Number") +
+  theme(legend.position = "none")+
+  scale_x_discrete(c("Single","Extended","Nonrelated"))
+```
+This figure shows that there are a greater number of single people.
+
+```{r Plot4, echo=FALSE}
+ggplot(data, aes(x = Electricity, y = Total.Number.of.Family.members, fill = Electricity)) +
+  geom_boxplot() +
+  labs( y = "Number") +
+  theme(legend.position = "none")
+```
+It can be seen from the plot that the number of household members with or without electricity is similar, and they have the same median.
+
+```{r Plot5, echo=FALSE}
+data %>% 
+  tabyl(Type.of.Household,Household.Head.Sex) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+ggplot(data, aes(x= Household.Head.Sex,  y = ..prop.., group=Type.of.Household, fill=Type.of.Household)) + 
+  geom_bar(position="dodge", stat="count") +
+  labs(y = "Proportion")
+```
+
+Here it is evident that when the house is owned by the man, it is mostly a extended family, whereas, women were more likely to live alone.
+
+```{r Plot6, echo=FALSE}
+data %>% 
+  tabyl(Type.of.Household,Electricity) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+ggplot(data, aes(x= Electricity,  y = ..prop.., group=Type.of.Household, fill=Type.of.Household)) + 
+  geom_bar(position="dodge", stat="count") +
+  labs(y = "Proportion")
+```
+When the house has no electricity, more people choose to live alone. When electricity is available, the proportion of extended families is higher.
+
+```{r Plot7, echo=FALSE}
+data %>% 
+  tabyl(Electricity,Household.Head.Sex) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+ggplot(data, aes(x= Household.Head.Sex,  y = ..prop.., group=Electricity, fill=Electricity)) + 
+  geom_bar(position="dodge", stat="count") +
+  labs(y = "Proportion")
+```
+For houses owned by women, it is mostly a family with electricity, whereas, for men, the proportion of electricity use is lower.
+
+##Models
+
+```{r model1,echo=FALSE}
+model1 <- glm(Total.Number.of.Family.members ~ Number.of.bedrooms+Total.Household.Income +Total.Food.Expenditure+Household.Head.Age+House.Floor.Area+House.Age+Electricity+Household.Head.Sex+Type.of.Household, data = data, family=poisson())
+model1 %>%
+  summary()
+```
+
+It appears as though at the 5\% level of significance, the response variable \textit{total number of family members} is significantly influenced by total household income (p = 1.96e-08), total food expenditure (p < 2e-16), household head age (male, p = 1.00e-10), type of household (extended, p < 2e-16), and less significantly albeit still influenced by house age (p = 0.0374). These results indicate that the extended household greatly influences the total number of family members while variable "number of bedrooms" does not significantly (p > 0.05) affect the total number of family members. This implies that the number of bedrooms does necessarily correspond to the number of family members.
+
+From here, we select those variables for which their corresponding p-values were less than 0.05, for analysis.
+
+```{r model2,echo=FALSE}
+model2<- glm(Total.Number.of.Family.members ~ Total.Household.Income +Total.Food.Expenditure+Household.Head.Age+House.Age+Household.Head.Sex+Type.of.Household, data = data, family=poisson())
+model2%>%
+  summary()
+```
+We see the coefficient for food expenditure and household head sexmale are positive, indicating that households with higher total food expenditures have more members. Furthermore, if the head of the household is male, there are more family members. All parameters included in this model have p-values less than 0.05 (at the 5\% level of significance), indicating each have a significant effect on the number of family members. 
+
+
+```{r log-odds,echo=FALSE}
+confint(model2) %>%
+  kable()
+plot_model(model2, show.values = TRUE, transform = NULL,
+           title = "Log-Odds Ratios", show.p = FALSE)
+```
+We interpret the log-odds ratio as follows: the ratio of household head being of sex male were 0.24 times those of female while the type of household being nonrelated was 0.51 times less the odds then related household.
+
+```{r odd,echo=FALSE}
+model2 %>%
+ coef() %>%
+  exp()
+```
+
+```{r odds,echo=FALSE}
+plot_model(model2, show.values = TRUE,
+title = "Odds Ratios", show.p = FALSE,value.offset = 0.25)
+```
+The odds ratios indicate the following: the household head odds being male sex were 1.28 times the odds of those of female head; the odds of an extended family were 0.69 times lowers then those of a single family; and, for the nonrelated household, the odds were 0.60 times lower tan that of related.
+
+```{r the estimated probabilities, echo=FALSE}
+plot_model(model2, type = "pred", title = "",
+axis.title = c("","Total.Number.of.Family.members"))
+```
