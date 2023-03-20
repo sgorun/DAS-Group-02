@@ -1,0 +1,16 @@
+---
+title: " Group_02_Analysis.Rmd"
+output: html_document
+date: '2023-03-09'
+author: "Group 2"
+---
+
+```{r}
+library(tidyverse)
+library(moderndive)
+library(gapminder)
+library(sjPlot)
+library(stats)
+library(jtools)
+```
+
