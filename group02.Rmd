@@ -1,0 +1,162 @@
+---
+title: "Group2"
+author: "Anwen Jin"
+date: "2023-03-14"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#loading packages
+library(readr)
+library(tidyverse)
+library(moderndive)
+library(gapminder)
+library(sjPlot)
+library(stats)
+library(jtools)
+library(janitor)
+library(knitr)
+
+```
+
+## Dataset
+
+The dataset comes from the FIES (Family Income and Expenditure Survey) recorded in the Philippines. The survey, which is undertaken every three years, is aimed at providing data on family income and expenditure. The datasets obtained from this survey is from the region,IVB - MIMAROPA, across the Philippines and the following variables, recorded by household.
+
+```{r reading dataset, include=FALSE}
+data<- read_csv("dataset2.csv")
+```
+
+## Variable analysis
+
+```{r variables, include=FALSE}
+head(data)
+glimpse(data)
+data$Household.Head.Sex<-as.factor(data$Household.Head.Sex)
+data$Type.of.Household<-as.factor(data$Type.of.Household)
+levels(data$Type.of.Household)<-c("Single","Extended","Nonrelated")
+data$Electricity<-as.factor(data$Electricity)
+ggplot(data, aes(x = Total.Number.of.Family.members)) + 
+  geom_density(color = "blue")
+```
+
+Because the response variable,Number of people living in the house, is integer data. In that case, GLM model for Poisson distribution is picked to fit the data.
+
+## Relationship between variables
+
+```{r p2, echo=FALSE}
+ggplot(data, aes(x = Household.Head.Sex, y = Total.Number.of.Family.members, fill = Household.Head.Sex)) +
+  geom_boxplot() +
+  labs( y = "Number") +
+  theme(legend.position = "none")
+```
+
+As can be seen from the p2, there are more people living in the house when the owner is a man.
+
+```{r p3, echo=FALSE}
+ggplot(data, aes(x = Type.of.Household, y = Total.Number.of.Family.members, fill = Type.of.Household)) +
+  geom_boxplot() +
+  labs( y = "Number") +
+  theme(legend.position = "none")+
+  scale_x_discrete(c("Single","Extended","Nonrelated"))
+```
+It can be seen from p3 that there are more single people
+
+```{r p4, echo=FALSE}
+ggplot(data, aes(x = Electricity, y = Total.Number.of.Family.members, fill = Electricity)) +
+  geom_boxplot() +
+  labs( y = "Number") +
+  theme(legend.position = "none")
+```
+It can be seen from p4 that the number of household members with or without electricity is similar, and they have the same median.
+```{r p5, echo=FALSE}
+data %>% 
+  tabyl(Type.of.Household,Household.Head.Sex) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+ggplot(data, aes(x= Household.Head.Sex,  y = ..prop.., group=Type.of.Household, fill=Type.of.Household)) + 
+  geom_bar(position="dodge", stat="count") +
+  labs(y = "Proportion")
+```
+
+From p5, it can be seen that when the house is owned by the man, it is mostly a extended family. Women were more likely to live alone.
+
+```{r p6, echo=FALSE}
+data %>% 
+  tabyl(Type.of.Household,Electricity) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+ggplot(data, aes(x= Electricity,  y = ..prop.., group=Type.of.Household, fill=Type.of.Household)) + 
+  geom_bar(position="dodge", stat="count") +
+  labs(y = "Proportion")
+```
+
+p6:When the house has no electricity, more people choose to live alone. When electricity is available, the proportion of extended 
+families is higher.
+
+```{r p7, echo=FALSE}
+data %>% 
+  tabyl(Electricity,Household.Head.Sex) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+ggplot(data, aes(x= Household.Head.Sex,  y = ..prop.., group=Electricity, fill=Electricity)) + 
+  geom_bar(position="dodge", stat="count") +
+  labs(y = "Proportion")
+```
+
+p7:When the house is owned by the women, it is mostly a family with electricity. For men, the proportion of electricity use is lower.
+
+##Models
+
+```{r model1,echo=FALSE}
+model1 <- glm(Total.Number.of.Family.members ~ Number.of.bedrooms+Total.Household.Income +Total.Food.Expenditure+Household.Head.Age+House.Floor.Area+House.Age+Electricity+Household.Head.Sex+Type.of.Household, data = data, family=poisson())
+model1 %>%
+  summary()
+```
+
+Notice that the coefficient of number of bedrooms is negative,suggesting that Families with more bedrooms do not necessarily have many family members.However, the coefficient of age is not significant (p-value of 0.1589).Again, others coefficient are negative except for the food expenditure and household hear sexmale.We select data with p-values less than 0.05 for analysis.
+
+
+from the p-value, whose \<0.05
+
+```{r model2,echo=FALSE}
+model2<- glm(Total.Number.of.Family.members ~ Total.Household.Income +Total.Food.Expenditure+Household.Head.Age+House.Age+Household.Head.Sex+Type.of.Household, data = data, family=poisson())
+model2%>%
+  summary()
+```
+
+We see the coefficient for food expenditure and household head sexmale are positive, indicating Households with higher total food expenditures have more members,and if the head of the household is male, he has more family members.The p-value of all parameters is significant(<0.05), So they  have a significant effect on the number of family members.
+
+
+
+
+
+
+
+
+```{r log-odd,echo=FALSE}
+confint(model2) %>%
+  kable()
+plot_model(model2, show.values = TRUE, transform = NULL,
+           title = "Log-Odds (Male instructor)", show.p = FALSE)
+```
+We interpret the odds ratios as follows: household head sex(male) were 0.24 times those of female.
+```{r odd,echo=FALSE}
+model2 %>%
+ coef() %>%
+  exp()
+```
+
+```{r probabilities,echo=FALSE}
+plot_model(model2, show.values = TRUE,
+title = "The estimated probabilities", show.p = FALSE,value.offset = 0.25)
+```
+We interpret the odds ratios as follows: household head sex(male) were 1.28 times those of female, extended family were 0.69 times  those of single family.Finally, for  extended family increase ,the family members decrease(by a factor of 0.69).
+```{r the estimated probabilities, echo=FALSE}
+plot_model(model2, type = "pred", title = "",
+axis.title = c("","Total.Number.of.Family.members"))
+```
